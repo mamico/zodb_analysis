@@ -58,6 +58,20 @@ An object is **live** if it is reachable from the root without going through a r
 - Only current revisions are analyzed: it does not measure space reclaimable by a pack.
 - Designed for Plone 6 with `plone.namedfile`, `plone.scale`, CMFEditions and `five.intid`.
 
+## Cleanup script
+
+`scripts/cleanup_scales.py` runs inside a full Plone instance and removes obsolete `plone.scale` scales from live content and from the CMFEditions history. It is a **dry-run unless `--commit` is passed**.
+
+```bash
+bin/instance -OPlone run scripts/cleanup_scales.py --sizes     # dry-run
+bin/instance -OPlone run scripts/cleanup_scales.py --commit
+```
+
+- Live content: per field, the newest generation is always kept; older ones are deleted (`--keep-days`, default 1, like `plone.scale`).
+- History: the whole `plone.scale` annotation is dropped (`--history drop|stale|skip`).
+- Content objects are never written (that would change `_p_mtime` and invalidate their scales).
+- Disk space is released only by a pack (with blob GC).
+
 ## Inspiration
 
 [`ZODB/scripts`](https://github.com/zopefoundation/ZODB/tree/master/src/ZODB/scripts) (`analyze`, `referrers`) and [`collective.zodbdebug`](https://github.com/collective/collective.zodbdebug) (reference map and referrer chains).
