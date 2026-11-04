@@ -2,62 +2,62 @@
 
 Yet another ZODB analysis tool.
 
-Analizza un `Data.fs` di Plone **senza blobstorage e senza importare classi Plone/Zope**: legge i record grezzi, ricostruisce il grafo dei riferimenti e decodifica i pickle con classi stub.
+Analyzes a Plone `Data.fs` **without the blobstorage and without importing any Plone/Zope classes**: it reads the raw records, rebuilds the reference graph and decodes pickles with stub classes.
 
-Risponde a tre domande:
+It answers three questions:
 
-1. Quanti riferimenti a blob esterni (`ZODB.blob.Blob`) ci sono, e quanto pesano (dimensione dichiarata dai `NamedBlob*`)?
-2. Quanti sono scale di `plone.scale`, e quante sono "stale" (generate per una modifica precedente dello stesso campo)?
-3. Quali contenuti sono zombie (fuori dall'albero di contenimento) e cosa li tiene in vita: `portal_historiesstorage`, IntIds, RelationCatalog, altri tool.
+1. How many external blob references (`ZODB.blob.Blob`) are there, and how big are they (size declared by the `NamedBlob*` objects)?
+2. How many of them are `plone.scale` scales, and how many are "stale" (generated for an earlier modification of the same field)?
+3. Which content objects are zombies (outside the containment tree) and what keeps them alive: `portal_historiesstorage`, IntIds, RelationCatalog, other tools.
 
-## Requisiti
+## Requirements
 
-Python 3.12 e `ZODB` (+ `zodbpickle`).
+Python 3.12 and `ZODB` (+ `zodbpickle`).
 
 ```bash
 uv venv venv && uv pip install -p venv/bin/python ZODB zodbpickle
 ```
 
-## Uso
+## Usage
 
 ```bash
 cd tools
 python analyze.py <Data.fs> <graph.pickle> <outdir>
 ```
 
-- Usa un **symlink** a `Data.fs` in una cartella scrivibile: l'indice FileStorage viene salvato accanto al link, senza toccare il file originale.
-- `graph.pickle` è la cache del grafo (creata al primo run, riusata dopo). Va rigenerata se cambia il `Data.fs`.
-- Il file viene aperto in sola lettura.
+- Use a **symlink** to `Data.fs` in a writable folder: the FileStorage index is saved next to the link, leaving the original file untouched.
+- `graph.pickle` is the graph cache (created on first run, reused afterwards). Delete it if `Data.fs` changes.
+- The file is always opened read-only.
 
-Riferimento: un `Data.fs` da 6 GB (8,5 M oggetti) richiede circa 10 minuti e qualche GB di RAM.
+For reference: a 6 GB `Data.fs` (8.5 M objects) takes about 10 minutes and a few GB of RAM.
 
 ## Output
 
 In `<outdir>`:
 
-| file | contenuto |
+| file | content |
 |---|---|
-| `report.md` | tabelle riassuntive: classi, raggiungibilità, retainer, history, scale, blob, zombie |
-| `blobs.csv` | un blob per riga: stato, tipo, proprietario, size dichiarata, path atteso in blobstorage (layout bushy) |
-| `histories.csv` | una history CMFEditions per riga: vivo/cancellato, versioni, byte e blob attribuiti |
-| `zombies.csv` | contenuti zombie con categoria e catena di riferimenti |
+| `report.md` | summary tables: classes, reachability, retainers, history, scales, blobs, zombies |
+| `blobs.csv` | one blob per row: state, kind, owner, declared size, expected blobstorage path (bushy layout) |
+| `histories.csv` | one CMFEditions history per row: alive/deleted, versions, attributed bytes and blobs |
+| `zombies.csv` | zombie content objects with category and reference chain |
 
-`blob_path` in `blobs.csv` permette di misurare i file reali sul server (es. `du` per categoria).
+`blob_path` in `blobs.csv` lets you measure the real files on the server (e.g. `du` per category).
 
-## Come funziona
+## How it works
 
-- `tools/zodbgraph.py`: grafo dai record correnti (`ZODB.serialize.referencesf`), lettura BTree e contenitori OFS.
-- `tools/analyze.py`: albero di contenimento dalla `Application`, *retainer* (tool del sito, IntIds, RelationCatalog), attribuzione di oggetti e blob a ciascun retainer, analisi di history, scale, blob e zombie.
+- `tools/zodbgraph.py`: graph built from current records (`ZODB.serialize.referencesf`), BTree and OFS container readers.
+- `tools/analyze.py`: containment tree from the `Application`, *retainers* (site tools, IntIds, RelationCatalog), attribution of objects and blobs to each retainer, analysis of history, scales, blobs and zombies.
 
-Un oggetto è **live** se raggiungibile dalla root senza passare dai retainer. Gli altri sono attribuiti ai retainer che li raggiungono.
+An object is **live** if it is reachable from the root without going through a retainer. All others are attributed to the retainers that reach them.
 
-## Limiti
+## Limitations
 
-- Dimensioni da campo `size` dei `NamedBlob*`, non da disco.
-- "Stale" è un'euristica: `modified` più vecchio dell'ultimo `modified` dello stesso campo nello stesso `ScalesDict`.
-- Analizza solo le revisioni correnti: non misura lo spazio recuperabile con una pack.
-- Pensato per Plone 6 con `plone.namedfile`, `plone.scale`, CMFEditions e `five.intid`.
+- Sizes come from the `size` field of `NamedBlob*`, not from disk.
+- "Stale" is a heuristic: `modified` older than the latest `modified` of the same field in the same `ScalesDict`.
+- Only current revisions are analyzed: it does not measure space reclaimable by a pack.
+- Designed for Plone 6 with `plone.namedfile`, `plone.scale`, CMFEditions and `five.intid`.
 
-## Ispirazione
+## Inspiration
 
-[`ZODB/scripts`](https://github.com/zopefoundation/ZODB/tree/master/src/ZODB/scripts) (`analyze`, `referrers`) e [`collective.zodbdebug`](https://github.com/collective/collective.zodbdebug) (mappa dei riferimenti e catena dei referrer).
+[`ZODB/scripts`](https://github.com/zopefoundation/ZODB/tree/master/src/ZODB/scripts) (`analyze`, `referrers`) and [`collective.zodbdebug`](https://github.com/collective/collective.zodbdebug) (reference map and referrer chains).
